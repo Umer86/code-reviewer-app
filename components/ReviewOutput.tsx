@@ -3,6 +3,8 @@ import type { BatchCodeReview, ReviewFeedback, ChatMessage } from '../types';
 import { Loader } from './Loader';
 import { WarningIcon } from './icons/WarningIcon';
 import { SendIcon } from './icons/SendIcon';
+import DOMPurify from 'dompurify';
+import { sanitizeInput } from '../utils/sanitization';
 
 
 interface ReviewOutputProps {
@@ -102,7 +104,7 @@ const FeedbackItem: React.FC<{ item: ReviewFeedback }> = ({ item }) => {
         <div>
           <h4 className="text-sm font-semibold text-gray-400 mb-1">Suggestion:</h4>
           <pre className="bg-gray-900 p-3 rounded-md text-sm font-mono overflow-x-auto">
-            <code>{item.suggestion}</code>
+            <code>{DOMPurify.sanitize(item.suggestion, { ALLOWED_TAGS: [] })}</code>
           </pre>
         </div>
       )}
@@ -184,7 +186,7 @@ const FileReviewDetails: React.FC<{ review: BatchCodeReview['fileReviews'][strin
                     </div>
                 )}
                 
-                <div className="space-y-4">
+                <div className="space-y-4" role="list" aria-label="Code review feedback">
                     {processedFeedback.length > 0 ? (
                         processedFeedback.map((item, index) => <FeedbackItem key={`${item.line}-${item.category}-${index}`} item={item} />)
                     ) : (
@@ -224,11 +226,11 @@ const ChatInterface: React.FC<{
     return (
         <div className="mt-6 pt-6 border-t border-gray-700 flex flex-col h-[400px]">
             <h3 className="text-lg font-semibold text-white mb-4">Follow-up Chat</h3>
-            <div className="flex-grow overflow-y-auto pr-2 -mr-2 space-y-4">
+            <div className="flex-grow overflow-y-auto pr-2 -mr-2 space-y-4" role="log" aria-label="Chat history">
                 {history.map((msg, index) => (
                     <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-xs md:max-w-md lg:max-w-lg p-3 rounded-lg ${msg.role === 'user' ? 'bg-cyan-700 text-white' : 'bg-gray-600 text-gray-200'}`}>
-                           <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                           <p className="text-sm whitespace-pre-wrap">{DOMPurify.sanitize(msg.content, { ALLOWED_TAGS: [] })}</p>
                         </div>
                     </div>
                 ))}
@@ -246,7 +248,7 @@ const ChatInterface: React.FC<{
                 <input
                     type="text"
                     value={input}
-                    onChange={(e) => setInput(e.target.value)}
+                    onChange={(e) => setInput(sanitizeInput(DOMPurify.sanitize(e.target.value, { ALLOWED_TAGS: [] }), 1000))}
                     placeholder="Ask a follow-up question..."
                     className="flex-grow bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
                     disabled={isLoading}

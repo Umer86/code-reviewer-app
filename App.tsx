@@ -1,11 +1,13 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, Suspense } from 'react';
 import { Header } from './components/Header';
-import { CodeInput } from './components/CodeInput';
 import { ReviewOutput } from './components/ReviewOutput';
 import { HistoryPanel } from './components/HistoryPanel';
 import * as historyService from './services/historyService';
 import { getAiService } from './services/aiServiceFactory';
 import type { CodeReview, ReviewHistoryItem, CodeFile, BatchCodeReview, ChatMessage, AiModel, IChatSession } from './types';
+
+// Lazy load CodeInput
+const CodeInput = React.lazy(() => import('./components/CodeInput').then(module => ({ default: module.CodeInput })));
 
 interface ReviewProgress {
   total: number;
@@ -21,6 +23,20 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<ReviewHistoryItem[]>([]);
   const [selectedModel, setSelectedModel] = useState<AiModel>('gemini');
+
+  // Online status
+  const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Chat state
   const [chatSession, setChatSession] = useState<IChatSession | null>(null);
@@ -126,6 +142,11 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-gray-200 font-sans">
       <Header />
+      {!isOnline && (
+        <div className="bg-red-600 text-white text-center py-2">
+          You are offline. Some features may not work.
+        </div>
+      )}
       <main className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
           <div className="col-span-12 xl:col-span-3">
@@ -136,14 +157,16 @@ const App: React.FC = () => {
             />
           </div>
           <div className="col-span-12 xl:col-span-5">
-            <CodeInput
-              files={files}
-              setFiles={setFiles}
-              onSubmit={handleReview}
-              isLoading={isLoading}
-              selectedModel={selectedModel}
-              onModelChange={setSelectedModel}
-            />
+            <Suspense fallback={<div>Loading...</div>}>
+              <CodeInput
+                files={files}
+                setFiles={setFiles}
+                onSubmit={handleReview}
+                isLoading={isLoading}
+                selectedModel={selectedModel}
+                onModelChange={setSelectedModel}
+              />
+            </Suspense>
           </div>
           <div className="col-span-12 xl:col-span-4">
             <ReviewOutput

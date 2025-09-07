@@ -39,6 +39,8 @@ export const LANGUAGE_MAP: Record<string, string> = {
   html: 'html',
   css: 'css',
   sh: 'shell',
+  bash: 'shell',
+  zsh: 'shell',
   sql: 'sql',
   json: 'json',
   md: 'markdown',
@@ -46,4 +48,4 @@ export const LANGUAGE_MAP: Record<string, string> = {
 };
 
 export const SUPPORTED_FILE_EXTENSIONS = Object.keys(LANGUAGE_MAP);
-export const MAX_FILE_SIZE = 1024 * 1024; // 1MB
+export const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB

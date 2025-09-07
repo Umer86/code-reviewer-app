@@ -7,6 +7,8 @@ import { FileIcon } from './icons/FileIcon';
 import { TrashIcon } from './icons/TrashIcon';
 import { Loader } from './Loader';
 import type { CodeFile, AiModel } from '../types';
+import DOMPurify from 'dompurify';
+import { sanitizeInput } from '../utils/sanitization';
 
 interface CodeInputProps {
   files: CodeFile[];
@@ -83,7 +85,10 @@ const PasteCodeInput: React.FC<{
           </div>
         <textarea
           value={code}
-          onChange={(e) => setCode(e.target.value)}
+          onChange={(e) => {
+            const sanitized = sanitizeInput(DOMPurify.sanitize(e.target.value, { ALLOWED_TAGS: [] }), 50000);
+            setCode(sanitized);
+          }}
           placeholder={`Paste your ${SUPPORTED_LANGUAGES.find(l => l.value === language)?.label || 'code'} here... (language will be auto-detected)`}
           className="w-full flex-grow bg-gray-900 text-gray-300 font-mono p-4 rounded-md border border-gray-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-none"
           spellCheck="false"
@@ -98,24 +103,66 @@ const FileUploadInput: React.FC<{ files: CodeFile[], setFiles: (files: CodeFile[
 
   const handleFileRead = useCallback((file: File): Promise<CodeFile> => {
     return new Promise((resolve, reject) => {
+      // Enhanced file validation
       const extension = file.name.split('.').pop()?.toLowerCase() || '';
+      const fileName = file.name.toLowerCase();
+      
+      // Check for malicious file names
+      const maliciousPatterns = ['.exe', '.bat', '.cmd', '.scr', '.pif', '.com'];
+      if (maliciousPatterns.some(pattern => fileName.includes(pattern))) {
+        return reject(new Error('File type not allowed for security reasons.'));
+      }
+      
       if (!SUPPORTED_FILE_EXTENSIONS.includes(extension)) {
         return reject(new Error(`File type .${extension} is not supported.`));
       }
-      if (file.size > MAX_FILE_SIZE) {
-        return reject(new Error(`File size exceeds the ${MAX_FILE_SIZE / 1024 / 1024}MB limit.`));
+      
+      // Enhanced MIME type validation
+      const allowedMimeTypes = [
+        'text/plain', 'text/javascript', 'text/typescript', 'text/x-python', 
+        'text/x-java-source', 'text/x-csharp', 'text/x-go', 'text/rust', 
+        'text/x-ruby', 'text/html', 'text/css', 'application/json', 
+        'text/markdown', 'application/javascript', 'text/x-sh', 'application/x-sh',
+        'text/x-shellscript', 'application/x-shellscript'
+      ];
+      
+      if (file.type && !allowedMimeTypes.includes(file.type)) {
+        return reject(new Error(`MIME type ${file.type} is not allowed.`));
+      }
+      
+      // Size validation with better limits
+      const maxSize = extension === 'json' ? 10 * 1024 * 1024 : MAX_FILE_SIZE; // 10MB for JSON
+      if (file.size > maxSize) {
+        return reject(new Error(`File size exceeds the ${maxSize / 1024 / 1024}MB limit.`));
       }
 
       const reader = new FileReader();
       reader.onload = (e) => {
         const content = e.target?.result as string;
+        
+        // Additional content validation
+        if (content.length > 1000000) { // 1MB of text
+          return reject(new Error('File content is too large to process safely.'));
+        }
+        
+        // Check for potentially malicious content
+        const maliciousPatterns = [
+          /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
+          /javascript:/gi,
+          /data:text\/html/gi
+        ];
+        
+        if (maliciousPatterns.some(pattern => pattern.test(content))) {
+          console.warn('Potentially malicious content detected in file');
+        }
+        
         resolve({
-          name: file.name,
+          name: DOMPurify.sanitize(file.name, { ALLOWED_TAGS: [] }),
           language: LANGUAGE_MAP[extension] || 'plaintext',
-          content: content,
+          content: DOMPurify.sanitize(content, { ALLOWED_TAGS: [] }),
         });
       };
-      reader.onerror = (e) => reject(new Error("Failed to read file."));
+      reader.onerror = () => reject(new Error("Failed to read file safely."));
       reader.readAsText(file);
     });
   }, []);

@@ -72,35 +72,44 @@ class GeminiService implements ICodeReviewerService {
     return this.ai;
   }
   
-  private async performApiCall(prompt: string, schema: object | null = null): Promise<string> {
-    try {
-      const ai = this.getAiInstance();
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: {
-          ...(schema && { 
-            responseMimeType: "application/json",
-            responseSchema: schema 
-          }),
-          temperature: 0.2,
-        },
-      });
+  private async performApiCall(prompt: string, schema: object | null = null, retries = 3): Promise<string> {
+    let lastError: Error;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const ai = this.getAiInstance();
+        const response = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: prompt,
+          config: {
+            ...(schema && { 
+              responseMimeType: "application/json",
+              responseSchema: schema 
+            }),
+            temperature: 0.2,
+          },
+        });
 
-      return response.text.trim();
-    } catch (error) {
-      console.error("Error calling Gemini API:", error);
-      if (error instanceof Error) {
-        const lowerCaseError = error.message.toLowerCase();
+        return response.text.trim();
+      } catch (error) {
+        console.error(`Error calling Gemini API (attempt ${attempt + 1}):`, error);
+        lastError = error as Error;
+        const lowerCaseError = lastError.message.toLowerCase();
         if (lowerCaseError.includes('429') || lowerCaseError.includes('rate limit')) {
-          throw new Error("API rate limit exceeded. Please wait a moment and try again.");
+          if (attempt < retries) {
+            const delay = Math.pow(2, attempt) * 1000; // Exponential backoff
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          throw new Error("Service temporarily unavailable. Please try again later.");
         }
         if (lowerCaseError.includes('api key not valid') || lowerCaseError.includes('permission denied')) {
-          throw new Error("The provided API key is invalid or lacks permissions. Please contact the administrator.");
+          throw new Error("Authentication failed. Please check your API configuration.");
         }
+        if (attempt === retries) break;
       }
-      throw new Error("Failed to get a response from the AI model. The model may have returned an invalid or empty response.");
     }
+    // Generic error message instead of exposing internal details
+    throw new Error("Unable to process your request at this time. Please try again.");
   }
 
   async getCodeReview(code: string, language: string): Promise<CodeReview> {

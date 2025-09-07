@@ -46,6 +46,9 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ history, onSelect, o
           </button>
         )}
       </div>
+      <p className="text-xs text-gray-500 mb-4">
+        History is stored locally and encrypted. Clear regularly for privacy.
+      </p>
       <div className="flex-grow overflow-y-auto -mr-3 pr-3">
         {history.length === 0 ? (
           <div className="flex items-center justify-center h-full text-center text-gray-500">

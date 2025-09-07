@@ -9,7 +9,7 @@ export const Header: React.FC = () => {
         <div className="flex items-center space-x-3">
           <CodeIcon className="h-8 w-8 text-cyan-500" />
           <h1 className="text-2xl font-bold text-white tracking-tight">
-            Gemini Code Reviewer
+            The Code Reviewer
           </h1>
         </div>
       </div>
